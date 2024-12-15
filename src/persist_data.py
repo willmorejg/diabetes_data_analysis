@@ -14,22 +14,12 @@
 
 """python script to persist data to the database"""
 import os
-from dotenv import load_dotenv
-import sqlalchemy as sa
-from sqlalchemy.sql import text
 
 from mods.decom_clarity_transformer import DecomClarityTransformer
-
+from mods.analyze_diabetes_db_data import AnalyzeDiabetesDbData
 
 # initial setup
-load_dotenv()
 cwd = os.getcwd()
-server = os.getenv('server')
-database = os.getenv('database')
-username = os.getenv('username')
-password = os.getenv('password')
-schema = os.getenv('schema')
-connection = sa.create_engine(f"postgresql://{username}:{password}@{server}/{database}")
 data_output = os.path.join(cwd, "output")
 data_dir = os.path.join(cwd, "data")
 # define the path to the Dexcom Clarity export file
@@ -48,36 +38,7 @@ df = (
 )
 df["datetime"] = df["datetime"].dt.strftime("%Y-%m-%dT%H:%M:%S")
 
-
-def custom_insert(table: str, conn: sa.Engine, keys: list, data_iter: iter):
-    """This is a custom insert into database function that will insert data into the database.
-
-    Args:
-        table (str): database table name
-        conn (sa.Engine): SQLAlchemy engine
-        keys (list): list of keys (database columns)
-        data_iter (iter):  iterable that iterates the values to be inserted
-    """
-    insert_stmt = f"INSERT INTO {table.schema}.{table.name} ({', '.join(keys)}) VALUES "
-
-    values = [
-        f"({', '.join(map(repr, row))})" 
-        for row in data_iter
-    ]
-    
-    for value in values:
-        full_insert = insert_stmt + value + " ON CONFLICT DO NOTHING"
-        
-        conn.execute(text(full_insert))
-        
-# insert data into the database using the custom insert function
-df.to_sql(
-    "diabetes_data",
-    connection,
-    schema=schema,
-    if_exists="append",
-    index=False,
-    method=custom_insert,
-)
+diabetes_db = AnalyzeDiabetesDbData()
+diabetes_db.insert_records(df)
 
 print("DONE!")
