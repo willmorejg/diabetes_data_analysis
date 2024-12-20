@@ -162,6 +162,21 @@ class AnalyzeDiabetesDbData:
             pd.DataFrame: a DataFrame containing only basal records
         """
         return df[(df.basal > 0)]
+    
+    def calculate_total_daily_dose(self, df: pd.DataFrame) -> float:
+        """Calculate the total daily dose.
+
+        TDD = (total daily dose) = (total basal insulin) + (total bolus insulin)
+
+        Args:
+            df (pd.DataFrame): the DataFrame containing all diabetes data
+
+        Returns:
+            float: the calculated total daily dose
+        """
+        basal_avg = self.create_basal_dataframe(df).basal.mean()
+        bolus_avg = self.create_bolus_dataframe(df).bolus.mean()
+        return basal_avg + bolus_avg
 
     def calculate_insulin_sensitivity_factor(self, df: pd.DataFrame) -> float:
         """Calculate the insulin sensitivity factor.
@@ -179,9 +194,7 @@ class AnalyzeDiabetesDbData:
         Returns:
             float: the calculated insulin sensitivity factor
         """
-        basal_avg = self.create_basal_dataframe(df).basal.mean()
-        bolus_avg = self.create_bolus_dataframe(df).bolus.mean()
-        tdd = basal_avg + bolus_avg
+        tdd = self.calculate_total_daily_dose(df)
         return 1800 / tdd
 
     def calculate_target_deviation(

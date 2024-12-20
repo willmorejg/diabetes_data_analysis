@@ -22,14 +22,14 @@ from mods.decom_clarity_transformer import DecomClarityTransformer
 from mods.analyze_diabetes_db_data import AnalyzeDiabetesDbData
 
 class TestAnalyzeDiabetesDbData(unittest.TestCase):
-    @unittest.skip('punt')
+    # @unittest.skip('punt')
     def test_insert_date(self):
         # initial setup
         cwd = os.getcwd()
         data_dir = os.path.join(cwd, "data")
         # define the path to the Dexcom Clarity export file
         decom_data_file = os.path.join(
-            data_dir, "Clarity_Export_Willmore_James_2024-12-14_135610.csv"
+            data_dir, ""
         )
 
         # instantiate the transformer and transform the data
@@ -49,47 +49,57 @@ class TestAnalyzeDiabetesDbData(unittest.TestCase):
         print("DONE!")
         self.assertTrue(True)
     
+    # @unittest.skip('punt')
     def test_dataframes(self):
         diabetes_db = AnalyzeDiabetesDbData()
-        df = diabetes_db.read_data_days_from_now(6)
-        print(df)
+        df = diabetes_db.read_data_days_from_now(90)
+        self.print_result("df", df)
         self.assertIsNotNone(df)
         
         df_carbs = diabetes_db.create_carbs_dataframe(df)
         avg_carbs = df_carbs.carbs.mean()
-        print(avg_carbs)
+        self.print_result("avg_carbs", avg_carbs)
         self.assertGreater(avg_carbs, 0)
         
         df_glucose = diabetes_db.create_glucose_dataframe(df)
         avg_glucose = df_glucose.glucose.mean()
-        print(avg_glucose)
+        self.print_result("avg_glucose", avg_glucose)
         self.assertGreater(avg_glucose, 0)
         
         df_bolus = diabetes_db.create_bolus_dataframe(df)
         avg_bolus = df_bolus.bolus.mean()
-        print(avg_bolus)
+        self.print_result("avg_bolus", avg_bolus)
         self.assertGreater(avg_bolus, 0)
         
         df_basal = diabetes_db.create_basal_dataframe(df)
         avg_basal = df_basal.basal.mean()
-        print(avg_basal)
+        self.print_result("avg_basal", avg_basal)
         self.assertGreater(avg_basal, 0)
+        
+        tdd = diabetes_db.calculate_total_daily_dose(df)
+        self.print_result("tdd", tdd)
+        self.assertGreater(tdd, 0)
+        
+        isf = diabetes_db.calculate_insulin_sensitivity_factor(df)
+        self.print_result("isf", isf)
+        self.assertGreater(isf, 0)
         
         df_target_deviation = diabetes_db.add_target_deviation_to_dataframe(df)
         df_target_deviation_1 = df_target_deviation[(df_target_deviation.target_deviation > 0.0)]
-        print(df_target_deviation_1)
+        self.print_result("df_target_deviation_1", df_target_deviation_1)
         self.assertIsNotNone(df_target_deviation_1)
         
         df_bolus_ratio = diabetes_db.add_bolus_ratio_to_dataframe(df_target_deviation)
         df_bolus_ratio = df_bolus_ratio[(df_bolus_ratio.bolus_ratio > 0.0)]
-        print(df_bolus_ratio)
+        self.print_result("df_bolus_ratio", df_bolus_ratio)
         self.assertIsNotNone(df_bolus_ratio)
         
         df_new_ratio = diabetes_db.recalculate_bolus_ratio(df)
         df_new_ratio = df_new_ratio[(df_new_ratio.bolus_ratio > 0.0)]
-        print(df_new_ratio)
+        self.print_result("df_new_ratio", df_new_ratio)
         self.assertIsNotNone(df_new_ratio)
         
-
+    def print_result(self, name, result):
+        print("\n====================\n", name, "\n<><><><><>\n", result, "\n====================\n")
 if __name__ == '__main__':
     unittest.main()
