@@ -22,7 +22,7 @@ from sqlalchemy.sql import text
 
 class AnalyzeDiabetesDbData:
     sql = """
-    SELECT "hour", hour_group, datetime, glucose, carbs, bolus, basal 
+    SELECT "hour", hour_group, CAST(datetime as TIMESTAMP) "datetime", glucose, carbs, bolus, basal 
     FROM diabetes.diabetes_data
     """
 
@@ -114,7 +114,7 @@ class AnalyzeDiabetesDbData:
             pd.DataFrame: the records meeting search criteria
         """
         modified_sql = (
-            f"{self.sql} WHERE datetime >= current_date - interval '{days_back} days'"
+            f"{self.sql} WHERE CAST(datetime as TIMESTAMP) >= current_date - interval '{days_back} days'"
         )
 
         return pd.read_sql_query(sql=modified_sql, con=self.connection)
