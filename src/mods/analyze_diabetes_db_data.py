@@ -94,6 +94,33 @@ class AnalyzeDiabetesDbData:
             full_insert = insert_stmt + value + " ON CONFLICT DO NOTHING"
 
             conn.execute(text(full_insert))
+    
+    def _set_datetime_to_timestamp(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Set the datetime column to a timestamp
+
+        Args:
+            df (pd.DataFrame): the DataFrame to update
+
+        Returns:
+            pd.DataFrame: the updated DataFrame
+        """
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        df["date"] = df["datetime"].dt.date
+        return df[["datetime", "date", "hour", "hour_group", "glucose", "carbs", "bolus", "basal"]]
+    
+    def _sort_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Sort the DataFrame
+
+        Args:
+            df (pd.DataFrame): the DataFrame to sort
+
+        Returns:
+            pd.DataFrame: the sorted DataFrame
+        """
+        return df.sort_values(
+            by=["datetime"],
+            ascending=[True],
+        )
 
     def read_all_data(self) -> pd.DataFrame:
         """Read all data
@@ -102,7 +129,8 @@ class AnalyzeDiabetesDbData:
             pd.DataFrame: all diabetes data
         """
 
-        return pd.read_sql_query(sql=self.sql, con=self.connection)
+        df = pd.read_sql_query(sql=self.sql, con=self.connection)
+        return self._sort_dataframe(self._set_datetime_to_timestamp(df))
 
     def read_data_days_from_now(self, days_back: int) -> pd.DataFrame:
         """Read data from last given days range (ex. last 90 days).
@@ -113,11 +141,10 @@ class AnalyzeDiabetesDbData:
         Returns:
             pd.DataFrame: the records meeting search criteria
         """
-        modified_sql = (
-            f"{self.sql} WHERE CAST(datetime as TIMESTAMP) >= current_date - interval '{days_back} days'"
-        )
-
-        return pd.read_sql_query(sql=modified_sql, con=self.connection)
+        modified_sql = f"{self.sql} WHERE CAST(datetime as TIMESTAMP) >= current_date - interval '{days_back} days'"
+        
+        df = pd.read_sql_query(sql=modified_sql, con=self.connection)
+        return self._sort_dataframe(self._set_datetime_to_timestamp(df))
 
     def create_carbs_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Create a DataFrame of only carbs data from given DataFrame.
@@ -162,7 +189,7 @@ class AnalyzeDiabetesDbData:
             pd.DataFrame: a DataFrame containing only basal records
         """
         return df[(df.basal > 0)]
-    
+
     def calculate_total_daily_dose(self, df: pd.DataFrame) -> float:
         """Calculate the total daily dose.
 
@@ -215,19 +242,16 @@ class AnalyzeDiabetesDbData:
         """
         if row["carbs"] > 0:
             temp_dt = row.datetime + dt.timedelta(hours=2, minutes=30)
-            minutes_before_5 = temp_dt - dt.timedelta(minutes=30)
-            minutes_after_5 = temp_dt + dt.timedelta(minutes=30)
+            minutes_before = temp_dt - dt.timedelta(minutes=60)
+            minutes_after = temp_dt + dt.timedelta(minutes=60)
             temp_glucose_df = df_glucose[
-                (df_glucose.datetime >= minutes_before_5)
-                & (df_glucose.datetime <= minutes_after_5)
+                (df_glucose.datetime >= minutes_before)
+                & (df_glucose.datetime <= minutes_after)
             ]
 
-            if temp_glucose_df.empty:
-                return 0.0
-
-            temp_mean = temp_glucose_df.glucose.mean()
-            value = (temp_mean - target) / isf
-            return value
+            if not temp_glucose_df.empty:
+                temp_mean = temp_glucose_df.glucose.mean()
+                return (temp_mean - target) / isf
         return 0.0
 
     def add_target_deviation_to_dataframe(
@@ -273,11 +297,11 @@ class AnalyzeDiabetesDbData:
         if row["carbs"] > 0:
             temp_carbs = row.carbs
             temp_dt = row.datetime
-            minutes_before_15 = temp_dt - dt.timedelta(minutes=15)
-            minutes_after_15 = temp_dt + dt.timedelta(minutes=15)
+            minutes_before = temp_dt - dt.timedelta(minutes=15)
+            minutes_after = temp_dt + dt.timedelta(minutes=15)
             temp_bolus_df = df_bolus[
-                (df_bolus.datetime >= minutes_before_15)
-                & (df_bolus.datetime <= minutes_after_15)
+                (df_bolus.datetime >= minutes_before)
+                & (df_bolus.datetime <= minutes_after)
             ]
 
             if temp_bolus_df.empty:
@@ -321,9 +345,8 @@ class AnalyzeDiabetesDbData:
         df_cpy = df.copy()
         df_cpy = self.add_bolus_ratio_to_dataframe(df_cpy)
         df_cpy = self.add_target_deviation_to_dataframe(df_cpy, isf, target)
-        df_cpy["new_ratio"] = (
-            df_cpy["carbs"]
-            / ((df_cpy["carbs"] / df_cpy["bolus_ratio"]) + df_cpy["target_deviation"])
+        df_cpy["new_ratio"] = df_cpy["carbs"] / (
+            (df_cpy["carbs"] / df_cpy["bolus_ratio"]) + df_cpy["target_deviation"]
         )
         df_cpy["new_ratio"] = df_cpy["new_ratio"].fillna(0)
         return df_cpy
